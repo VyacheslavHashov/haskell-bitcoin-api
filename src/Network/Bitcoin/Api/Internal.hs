@@ -14,9 +14,12 @@ import qualified Data.HashMap.Strict       as HM
 import qualified Data.Text                 as T
 import qualified Network.Bitcoin.Api.Types as T
 
-data RpcResult a = RpcResultError String
+data RpcResult a = RpcResultError RpcError
                  | RpcResultOk a
   deriving (Show)
+
+data RpcError = RpcError { errCode :: Int, errMsg :: T.Text }
+    deriving (Show)
 
 instance FromJSON a => FromJSON (RpcResult a) where
   parseJSON (Object o) =
@@ -28,6 +31,12 @@ instance FromJSON a => FromJSON (RpcResult a) where
           | otherwise = RpcResultOk    <$> o' .: "result"
 
     in parseResult checkError o
+
+  parseJSON _ = mzero
+
+instance FromJSON RpcError where
+  parseJSON (Object o) =
+    RpcError <$> o .: "code" <*> o .: "message"
 
   parseJSON _ = mzero
 
@@ -45,7 +54,7 @@ call client method params =
                        , "id"      .= (1 :: Int)]
 
       call' = do
-        putStrLn ("Now sending JSON command: " ++ show (encode command))
+--         putStrLn ("Now sending JSON command: " ++ show (encode command))
         r <- W.asJSON =<< WS.postWith (T.clientOpts client) (T.clientSession client) (T.clientUrl client) command
         return (r ^. W.responseBody)
 
